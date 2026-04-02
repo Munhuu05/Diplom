@@ -1,6 +1,24 @@
 const paymentModel = require('../models/paymentModel');
 const orderModel = require('../models/orderModel');
-const { PAYMENT_STATUS, ORDER_STATUS } = require('../utils/constants');
+const { PAYMENT_STATUS, ORDER_STATUS, ROLES } = require('../utils/constants');
+
+async function ensureOrderAccess(req, orderId) {
+  const order = await orderModel.getOrderById(orderId);
+  if (!order) {
+    return { error: { status: 404, message: 'Order not found' } };
+  }
+
+  const isCustomerOnly = req.user.roles.includes(ROLES.CUSTOMER)
+    && !req.user.roles.includes(ROLES.ADMIN)
+    && !req.user.roles.includes(ROLES.ACCOUNTANT)
+    && !req.user.roles.includes(ROLES.MANAGER);
+
+  if (isCustomerOnly && order.customer_id !== req.user.id) {
+    return { error: { status: 403, message: 'Forbidden: You can access only your own orders' } };
+  }
+
+  return { order };
+}
 
 async function createPayment(req, res) {
   try {
@@ -29,6 +47,15 @@ async function createPayment(req, res) {
 async function getOrderPaymentSummary(req, res) {
   try {
     const orderId = Number(req.params.orderId);
+    if (!Number.isInteger(orderId) || orderId <= 0) {
+      return res.status(400).json({ message: 'Invalid order id' });
+    }
+
+    const access = await ensureOrderAccess(req, orderId);
+    if (access.error) {
+      return res.status(access.error.status).json({ message: access.error.message });
+    }
+
     const summary = await paymentModel.getOrderPaymentSummary(orderId);
     if (!summary) {
       return res.status(404).json({ message: 'Order not found' });
@@ -50,8 +77,16 @@ async function getOrderPaymentSummary(req, res) {
 async function simulateOnlinePayment(req, res) {
   try {
     const orderId = Number(req.params.orderId);
-    const orderSummary = await paymentModel.getOrderPaymentSummary(orderId);
+    if (!Number.isInteger(orderId) || orderId <= 0) {
+      return res.status(400).json({ message: 'Invalid order id' });
+    }
 
+    const access = await ensureOrderAccess(req, orderId);
+    if (access.error) {
+      return res.status(access.error.status).json({ message: access.error.message });
+    }
+
+    const orderSummary = await paymentModel.getOrderPaymentSummary(orderId);
     if (!orderSummary) {
       return res.status(404).json({ message: 'Order not found' });
     }

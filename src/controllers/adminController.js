@@ -4,6 +4,13 @@ const adminModel = require('../models/adminModel');
 const pool = require('../config/db');
 const { ROLES } = require('../utils/constants');
 
+async function ensureCustomerProfile(userId, fullName = 'Customer') {
+  const [rows] = await pool.query('SELECT id FROM customers WHERE user_id = ?', [userId]);
+  if (!rows.length) {
+    await pool.query('INSERT INTO customers (user_id, company_name) VALUES (?, ?)', [userId, `${fullName} Company`]);
+  }
+}
+
 async function listUsers(req, res) {
   try {
     const users = await userModel.listUsers();
@@ -27,7 +34,7 @@ async function createUser(req, res) {
     await userModel.assignRole(userId, roleName);
 
     if (roleName === ROLES.CUSTOMER) {
-      await pool.query('INSERT INTO customers (user_id, company_name) VALUES (?, ?)', [userId, `${full_name} Company`]);
+      await ensureCustomerProfile(userId, full_name);
     }
 
     return res.status(201).json({ message: 'User created', userId });
@@ -47,7 +54,12 @@ async function updateUser(req, res) {
 
 async function deleteUser(req, res) {
   try {
-    await userModel.deleteUser(Number(req.params.id));
+    const targetUserId = Number(req.params.id);
+    if (targetUserId === req.user.id) {
+      return res.status(400).json({ message: 'You cannot delete your own account' });
+    }
+
+    await userModel.deleteUser(targetUserId);
     return res.json({ message: 'User deleted' });
   } catch (error) {
     return res.status(500).json({ message: error.message });
@@ -57,7 +69,14 @@ async function deleteUser(req, res) {
 async function assignRole(req, res) {
   try {
     const { roleName } = req.body;
-    await userModel.assignRole(Number(req.params.id), roleName);
+    const userId = Number(req.params.id);
+    await userModel.assignRole(userId, roleName);
+
+    if (roleName === ROLES.CUSTOMER) {
+      const targetUser = await userModel.findUserById(userId);
+      await ensureCustomerProfile(userId, targetUser ? targetUser.full_name : 'Customer');
+    }
+
     return res.json({ message: 'Role assigned' });
   } catch (error) {
     return res.status(400).json({ message: error.message });

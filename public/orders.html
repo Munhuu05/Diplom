@@ -58,7 +58,7 @@
 
   async function loadOrders() {
     try {
-      const endpoint = roleSet.has('CUSTOMER') ? '/orders/my' : '/orders/all';
+      const endpoint = (roleSet.has('MANAGER') || roleSet.has('ADMIN')) ? '/orders/all' : '/orders/my';
       const orders = await apiFetch(endpoint);
       ordersBody.innerHTML = orders.map(o => `
         <tr>

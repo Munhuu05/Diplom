@@ -22,8 +22,9 @@ router.post(
   paymentController.createPayment
 );
 
-router.get('/:orderId/summary', authorize(ROLES.CUSTOMER, ROLES.ACCOUNTANT, ROLES.ADMIN, ROLES.MANAGER), paymentController.getOrderPaymentSummary);
-router.post('/mock/:orderId', authorize(ROLES.CUSTOMER, ROLES.ACCOUNTANT, ROLES.ADMIN), paymentController.simulateOnlinePayment);
+// Keep static routes before param routes.
 router.get('/report', authorize(ROLES.ACCOUNTANT, ROLES.ADMIN, ROLES.MANAGER), paymentController.paymentReport);
+router.post('/mock/:orderId', authorize(ROLES.CUSTOMER, ROLES.ACCOUNTANT, ROLES.ADMIN), paymentController.simulateOnlinePayment);
+router.get('/:orderId/summary', authorize(ROLES.CUSTOMER, ROLES.ACCOUNTANT, ROLES.ADMIN, ROLES.MANAGER), paymentController.getOrderPaymentSummary);
 
 module.exports = router;
