@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+<div class="container">
+  <div class="nav">
+    <a href="/dashboard.html">Dashboard</a>
+    <a href="/admin.html">Admin</a>
+    <button class="secondary" onclick="logout()">Logout</button>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Create Concrete Grade</h2>
+      <form id="gradeForm">
+        <input id="grade_code" placeholder="M200" required />
+        <input id="grade_desc" placeholder="Description" />
+        <button>Create</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Create Tariff</h2>
+      <form id="tariffForm">
+        <input id="tar_grade_id" type="number" placeholder="Concrete grade ID" required />
+        <input id="price_per_m3" type="number" step="0.01" placeholder="Price per m3" required />
+        <input id="pump_cost" type="number" step="0.01" placeholder="Pump cost" required />
+        <input id="delivery_cost" type="number" step="0.01" placeholder="Delivery cost" required />
+        <button>Create Tariff</button>
+      </form>
+    </div>
+  </div>
+</div>
+<script src="/js/app.js"></script>
+<script>
+  mustLogin();
+  const user = getUser();
+  if (!user.roles.includes('ADMIN')) {
+    alert('Admin only');
+    window.location.href = '/dashboard.html';
+  }
+
+  gradeForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      await apiFetch('/admin/concrete-grades', {
+        method: 'POST',
+        body: JSON.stringify({ grade_code: grade_code.value, description: grade_desc.value })
+      });
+      alert('Grade created');
+    } catch (error) { alert(error.message); }
+  });
+
+  tariffForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      await apiFetch('/admin/tariffs', {
+        method: 'POST',
+        body: JSON.stringify({
+          concrete_grade_id: Number(tar_grade_id.value),
+          price_per_m3: Number(price_per_m3.value),
+          pump_cost: Number(pump_cost.value),
+          delivery_cost: Number(delivery_cost.value)
+        })
+      });
+      alert('Tariff created');
+    } catch (error) { alert(error.message); }
+  });
+</script>
+</body>
+</html>
