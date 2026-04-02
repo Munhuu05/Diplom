@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Concrete OMS | Admin</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="brand">Admin Panel</div>
+    <div class="nav">
+      <a href="/dashboard.html">Dashboard</a>
+      <a href="/orders.html">Orders</a>
+      <a href="/admin.html">Admin</a>
+      <button class="secondary" onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Create User</h2>
+      <p class="small">Admin can create system users and assign initial role.</p>
+      <form id="createUserForm">
+        <input id="new_full_name" placeholder="Full name" required />
+        <input id="new_email" type="email" placeholder="Email" required />
+        <input id="new_phone" placeholder="Phone" />
+        <input id="new_password" type="password" placeholder="Password" required minlength="6" />
+        <select id="new_role" required></select>
+        <button>Create user</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Concrete Setup</h2>
+      <form id="gradeForm">
+        <input id="grade_code" placeholder="Grade code (M200)" required />
+        <input id="grade_desc" placeholder="Description" />
+        <button>Create Grade</button>
+      </form>
+      <hr />
+      <form id="tariffForm">
+        <input id="tar_grade_id" type="number" placeholder="Concrete grade ID" required />
+        <input id="price_per_m3" type="number" step="0.01" placeholder="Price per m3" required />
+        <input id="pump_cost" type="number" step="0.01" placeholder="Pump cost" required />
+        <input id="delivery_cost" type="number" step="0.01" placeholder="Delivery cost" required />
+        <button>Create Tariff</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Users & Role Management</h2>
+    <table>
+      <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Roles</th><th>Assign Role</th><th>Action</th></tr></thead>
+      <tbody id="usersBody"></tbody>
+    </table>
+  </div>
+</div>
+<script src="/js/app.js"></script>
+<script>
+  mustLogin();
+  const user = getUser();
+  if (!user.roles.includes('ADMIN')) {
+    alert('Admin access only');
+    window.location.href = '/dashboard.html';
+  }
+
+  let roles = [];
+
+  async function loadRoles() {
+    roles = await apiFetch('/admin/roles');
+    new_role.innerHTML = roles.map(r => `<option value="${r.name}">${r.name}</option>`).join('');
+  }
+
+  async function loadUsers() {
+    const users = await apiFetch('/admin/users');
+    usersBody.innerHTML = users.map(u => `
+      <tr>
+        <td>${u.id}</td>
+        <td>${u.full_name}</td>
+        <td>${u.email}</td>
+        <td>${u.roles || '-'}</td>
+        <td>
+          <div class="inline">
+            <select id="role-${u.id}">${roles.map(r => `<option value="${r.name}">${r.name}</option>`).join('')}</select>
+            <button onclick="assignRole(${u.id})">Assign</button>
+          </div>
+        </td>
+        <td><button class="danger" onclick="deleteUser(${u.id})">Delete</button></td>
+      </tr>
+    `).join('');
+  }
+
+  createUserForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      await apiFetch('/admin/users', {
+        method: 'POST',
+        body: JSON.stringify({
+          full_name: new_full_name.value,
+          email: new_email.value,
+          phone: new_phone.value,
+          password: new_password.value,
+          roleName: new_role.value
+        })
+      });
+      createUserForm.reset();
+      alert('User created');
+      await loadUsers();
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+
+  async function assignRole(userId) {
+    try {
+      await apiFetch(`/admin/users/${userId}/roles`, {
+        method: 'POST',
+        body: JSON.stringify({ roleName: document.getElementById(`role-${userId}`).value })
+      });
+      await loadUsers();
+    } catch (error) {
+      alert(error.message);
+    }
+  }
+
+  async function deleteUser(userId) {
+    if (!confirm('Delete this user?')) return;
+    try {
+      await apiFetch(`/admin/users/${userId}`, { method: 'DELETE' });
+      await loadUsers();
+    } catch (error) {
+      alert(error.message);
+    }
+  }
+
+  gradeForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      await apiFetch('/admin/concrete-grades', {
+        method: 'POST',
+        body: JSON.stringify({ grade_code: grade_code.value, description: grade_desc.value })
+      });
+      alert('Grade created');
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+
+  tariffForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      await apiFetch('/admin/tariffs', {
+        method: 'POST',
+        body: JSON.stringify({
+          concrete_grade_id: Number(tar_grade_id.value),
+          price_per_m3: Number(price_per_m3.value),
+          pump_cost: Number(pump_cost.value),
+          delivery_cost: Number(delivery_cost.value)
+        })
+      });
+      alert('Tariff created');
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+
+  async function init() {
+    try {
+      await loadRoles();
+      await loadUsers();
+    } catch (error) {
+      alert(error.message);
+    }
+  }
+
+  init();
+</script>
+</body>
+</html>

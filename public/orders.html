@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Concrete OMS | Orders</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="brand">Orders</div>
+    <div class="nav">
+      <a href="/dashboard.html">Dashboard</a>
+      <a href="/orders.html">Orders</a>
+      <a href="/create-order.html">Create Order</a>
+      <a id="adminLink" href="/admin.html" style="display:none;">Admin</a>
+      <button class="secondary" onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Order List</h2>
+    <p class="small">Customers can cancel NEW orders and complete payment. Managers can update statuses.</p>
+    <table>
+      <thead><tr><th>ID</th><th>Customer</th><th>Grade</th><th>Volume</th><th>Status</th><th>Total</th><th>Actions</th></tr></thead>
+      <tbody id="ordersBody"></tbody>
+    </table>
+  </div>
+</div>
+<script src="/js/app.js"></script>
+<script>
+  mustLogin();
+  const user = getUser();
+  const roleSet = new Set(user.roles || []);
+  if (roleSet.has('ADMIN')) adminLink.style.display = 'inline-block';
+
+  const statusOptions = ['NEW','CONFIRMED','IN_PRODUCTION','PRODUCED','OUT_FOR_DELIVERY','DELIVERING','DELIVERED','COMPLETED','CANCELLED'];
+
+  function managerActions(order) {
+    if (!roleSet.has('MANAGER') && !roleSet.has('ADMIN')) return '';
+    return `
+      <div class="inline">
+        <select id="status-${order.id}">
+          ${statusOptions.map(s => `<option ${s===order.status?'selected':''}>${s}</option>`).join('')}
+        </select>
+        <button onclick="updateStatus(${order.id})">Save</button>
+      </div>
+    `;
+  }
+
+  function customerActions(order) {
+    if (!roleSet.has('CUSTOMER')) return '';
+    const cancelBtn = order.status === 'NEW' ? `<button class="danger" onclick="cancelOrder(${order.id})">Cancel</button>` : '';
+    const payBtn = `<button class="success" onclick="payNow(${order.id})">Pay now</button>`;
+    return `${cancelBtn} ${payBtn}`;
+  }
+
+  async function loadOrders() {
+    try {
+      const endpoint = roleSet.has('CUSTOMER') ? '/orders/my' : '/orders/all';
+      const orders = await apiFetch(endpoint);
+      ordersBody.innerHTML = orders.map(o => `
+        <tr>
+          <td>#${o.id}</td>
+          <td>${o.customer_name || user.full_name}</td>
+          <td>${o.grade_code || ''}</td>
+          <td>${o.volume_m3} m3</td>
+          <td><span class="tag ${statusClass(o.status)}">${o.status}</span></td>
+          <td>$${Number(o.total_amount).toFixed(2)}</td>
+          <td>${customerActions(o)} ${managerActions(o)}</td>
+        </tr>
+      `).join('');
+    } catch (error) {
+      alert(error.message);
+    }
+  }
+
+  async function updateStatus(id) {
+    try {
+      const status = document.getElementById(`status-${id}`).value;
+      await apiFetch(`/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+      alert('Status updated');
+      loadOrders();
+    } catch (error) {
+      alert(error.message);
+    }
+  }
+
+  async function cancelOrder(id) {
+    try {
+      await apiFetch(`/orders/my/${id}/cancel`, { method: 'PATCH' });
+      loadOrders();
+    } catch (error) {
+      alert(error.message);
+    }
+  }
+
+  async function payNow(orderId) {
+    try {
+      const s = await apiFetch(`/payments/${orderId}/summary`);
+      if (Number(s.remaining_amount) <= 0) {
+        alert('Order already fully paid');
+        return;
+      }
+      await apiFetch(`/payments/mock/${orderId}`, { method: 'POST' });
+      alert('Mock online payment successful');
+      loadOrders();
+    } catch (error) {
+      alert(error.message);
+    }
+  }
+
+  loadOrders();
+</script>
+</body>
+</html>

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Concrete OMS | Dashboard</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="brand">Concrete Order Management System</div>
+    <div class="nav">
+      <a href="/dashboard.html">Dashboard</a>
+      <a href="/orders.html">Orders</a>
+      <a href="/create-order.html">Create Order</a>
+      <a id="adminLink" href="/admin.html" style="display:none;">Admin</a>
+      <button class="secondary" onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h1>Dashboard</h1>
+    <p id="welcome" class="small"></p>
+  </div>
+
+  <div id="reportArea"></div>
+  <div id="paymentArea"></div>
+</div>
+<script src="/js/app.js"></script>
+<script>
+  mustLogin();
+  const user = getUser();
+  const roleSet = new Set(user.roles || []);
+  welcome.innerText = `Hello ${user.full_name}. Roles: ${user.roles.join(', ')}`;
+
+  if (roleSet.has('ADMIN')) {
+    adminLink.style.display = 'inline-block';
+  }
+
+  async function loadOrderReport() {
+    if (![...roleSet].some(r => ['ADMIN','MANAGER','ACCOUNTANT'].includes(r))) return;
+    try {
+      const report = await apiFetch('/reports/dashboard');
+      reportArea.innerHTML = `
+        <div class="grid-3">
+          <div class="card"><h3>Total Orders</h3><h2>${report.summary.total_orders}</h2></div>
+          <div class="card"><h3>Total Revenue</h3><h2>$${Number(report.summary.revenue).toFixed(2)}</h2></div>
+          <div class="card"><h3>Top Status</h3><h2>${report.byStatus[0] ? report.byStatus[0].status : '-'}</h2></div>
+        </div>
+        <div class="card">
+          <h3>Orders by Status</h3>
+          <div class="grid-3">${report.byStatus.map(s => `<div><span class="tag ${statusClass(s.status)}">${s.status}</span> - ${s.count}</div>`).join('')}</div>
+        </div>
+      `;
+    } catch (error) {
+      reportArea.innerHTML = `<div class="card">${error.message}</div>`;
+    }
+  }
+
+  async function loadPaymentReport() {
+    if (![...roleSet].some(r => ['ADMIN','MANAGER','ACCOUNTANT'].includes(r))) return;
+    try {
+      const payments = await apiFetch('/payments/report?period=daily');
+      paymentArea.innerHTML = `
+        <div class="card">
+          <h3>Daily Payment Report</h3>
+          <table>
+            <thead><tr><th>Period</th><th>Transactions</th><th>Total Amount</th></tr></thead>
+            <tbody>
+              ${payments.map(p => `<tr><td>${p.period}</td><td>${p.total_transactions}</td><td>$${Number(p.total_amount || 0).toFixed(2)}</td></tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    } catch (error) {
+      paymentArea.innerHTML = `<div class="card">${error.message}</div>`;
+    }
+  }
+
+  loadOrderReport();
+  loadPaymentReport();
+</script>
+</body>
+</html>
